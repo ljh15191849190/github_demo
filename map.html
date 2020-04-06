@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>检索各单位泊位信息</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/css/ol.css" type="text/css">
+    <!-- <script src="http://apps.bdimg.com/libs/jquery/2.1.4/jquery.min.js"></script> -->
+    <script src="https://cdn.polyfill.io/v2/polyfill.min.js?features=fetch,requestAnimationFrame,Element.prototype.classList,URL"></script>
+    <script src="https://cdn.jsdelivr.net/gh/openlayers/openlayers.github.io@master/en/v6.2.1/build/ol.js"></script>
+    <style>
+        #map{
+            width: 100%;
+            height: 500px;
+        }
+        .ol-popup {
+        position: absolute;
+        background-color: white;
+        box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+        padding: 15px;
+        border-radius: 10px;
+        border: 1px solid #cccccc;
+        bottom: 12px;
+        left: -50px;
+        min-width: 280px;
+      }
+      .ol-popup:after, .ol-popup:before {
+        top: 100%;
+        border: solid transparent;
+        content: " ";
+        height: 0;
+        width: 0;
+        position: absolute;
+        pointer-events: none;
+      }
+      .ol-popup:after {
+        border-top-color: white;
+        border-width: 10px;
+        left: 48px;
+        margin-left: -10px;
+      }
+      .ol-popup:before {
+        border-top-color: #cccccc;
+        border-width: 11px;
+        left: 48px;
+        margin-left: -11px;
+      }
+      .ol-popup-closer {
+        text-decoration: none;
+        position: absolute;
+        top: 2px;
+        right: 8px;
+      }
+      .ol-popup-closer:after {
+        content: "✖";
+      }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <!--点详情弹框-->
+    <div id="popup" class="ol-popup">
+        <a href="#" id="popup-closer" class="ol-popup-closer"></a>
+        <div id="popup-content"></div>
+    </div>
+
+<script type="text/javascript">
+
+    //总泊位数组
+     var coordinatesPolygona = new Array();
+    //用于测试的一些数据，可以先测试看看好不好用
+     var coordinates = [[51.6082, 24.1246],
+                [52.4383, 22.9673],
+                [54.8306, 22.6825],
+                [54.9454, 23.3488],
+                [51.6082, 24.1246]]
+     var coordinatesPolygon = pushCoordinates(coordinates);
+     coordinatesPolygona[0] = coordinatesPolygon;
+
+     coordinates =  [[122.051605773926, 30.6479315948486],
+                [122.051605773926, 30.6499896240234],
+                [122.051436279297, 30.6499896240234],
+                [122.051436279297, 30.6479315948486],
+                [122.051605773926, 30.6479315948486]];
+     coordinatesPolygon =  pushCoordinates(coordinates);
+     coordinatesPolygona[1] = coordinatesPolygon;  
+
+    //普通图层
+    var tileLayer = new ol.layer.Tile({
+        source:new ol.source.OSM()
+    });
+
+    var source = new ol.source.Vector();
+
+    //多边形此处注意一定要是[坐标数组]
+    var plygon = new ol.geom.Polygon(coordinatesPolygona);
+
+    //多边形要素类
+    var feature = new ol.Feature({
+        geometry: plygon//plygon代表多边形
+    });
+
+    /*此处为重要，理解feature和source的关系，也就很简单了
+        feature就是我们的画图层
+    */
+    source.addFeature(feature);
+
+
+    //矢量图层
+    var vector = new ol.layer.Vector({
+        source: source,
+        style: new ol.style.Style({
+            fill: new ol.style.Fill({
+                color: 'pink'
+            }),
+            stroke: new ol.style.Stroke({
+                color: 'red',
+                width: 2
+            }),
+            image: new ol.style.Circle({
+                radius: 7,
+                fill: new ol.style.Fill({
+                    color: 'red'
+                })
+            })
+        })
+    });
+    // 弹出层
+    var container = document.getElementById('popup');
+    var content = document.getElementById('popup-content');
+    var closer = document.getElementById('popup-closer');
+    var overlay = new ol.Overlay({
+        element: container,
+        autoPan: true,
+        autoPanAnimation: {
+            duration: 250
+        }
+    });
+    //我这里没有对map加载进行处理，所以在二次加载时会出现覆盖现象。
+    //本意是进页面就加载，没有按钮。所以有需要的可以处理一下
+    var map = new ol.Map({
+        layers: [tileLayer, vector],
+        overlays: [overlay],
+        view:new ol.View({
+            center:[54.52, 24.38],
+            zoom: 6,
+            projection: "EPSG:4326"
+
+        }),
+        controls: ol.control.defaults().extend([
+            new ol.control.ScaleLine(),// 比例尺控件
+            new ol.control.ZoomSlider(),// 缩放刻度控件
+            new ol.control.ZoomToExtent()// 缩放到全局控件
+        ]),
+        target: "map"
+    });
+
+
+//画框前置方法 数据处理
+ function pushCoordinates(coordinates){
+    //声明一个新的数组
+    var coordinatesPolygon = new Array();
+
+    //循环遍历将经纬度转到"EPSG:4326"投影坐标系下
+
+    for (var i = 0; i < coordinates.length; i++) {
+        //坐标转换
+        var pointTransform = ol.proj.fromLonLat([coordinates[i][0], coordinates[i][1]], "EPSG:4326");
+        //形成多边形数组
+        coordinatesPolygon.push(pointTransform);
+
+    }
+
+    return coordinatesPolygon;
+    
+}
+
+// 高亮
+
+// var highlightStyle = new ol.style.Style({
+//   stroke: new ol.style.Stroke({
+//     color: '#f00',
+//     width: 1
+//   }),
+//   fill: new ol.style.Fill({
+//     color: 'rgba(255,0,0,0.1)'
+//   }),
+//   text: new ol.style.Text({
+//     font: '12px Calibri,sans-serif',
+//     fill: new ol.style.Fill({
+//       color: '#000'
+//     }),
+//     stroke: new ol.style.Stroke({
+//       color: '#f00',
+//       width: 3
+//     })
+//   })
+// });
+
+// 鼠标悬浮图层
+var featureOverlay = new ol.layer.Vector({
+  source: new ol.source.Vector(),
+  map: map,
+  style: new ol.style.Style({
+    stroke: new ol.style.Stroke({
+        color: 'blue',
+        width: 2
+    }),
+    fill: new ol.style.Fill({
+        color: 'yellow'
+    }),
+  })
+});
+
+var highlight;
+var displayFeatureInfo = function(pixel,evt) {
+    vector.getFeatures(pixel).then(function(features) {
+        var feature = features.length ? features[0] : undefined;
+        if(feature){
+            var coordinate = evt.coordinate;
+            content.innerHTML = '<p>此处为:</p><code>' + 123 +
+                '</code>';
+            overlay.setPosition(coordinate);
+        }
+
+        if (feature !== highlight) {
+            if (highlight) {
+                featureOverlay.getSource().removeFeature(highlight);
+            }
+            if (feature) {
+                featureOverlay.getSource().addFeature(feature);
+            }
+            highlight = feature;
+        }
+  });
+
+};
+
+map.on('pointermove', function(evt) {
+  if (evt.dragging) {
+   return
+  }
+  var pixel = map.getEventPixel(evt.originalEvent);
+  displayFeatureInfo(pixel,evt);
+});
+map.on('click', function(evt) {
+    // displayFeatureInfo(evt.pixel);
+    var pixel = map.getEventPixel(evt.originalEvent);
+    vector.getFeatures(pixel).then(function(features) {
+        if(feature && features.length){
+            map.getView().setZoom(8)
+            map.getView().setCenter(evt.coordinate)
+        }
+    })
+    
+});
+
+
+// map.on('singleclick', function(evt) {
+//   var coordinate = evt.coordinate;
+//   content.innerHTML = '<p>此处为:</p><code>' + 123 +
+//       '</code>';
+//   overlay.setPosition(coordinate);
+// });
+
+
+closer.onclick = function() {
+  overlay.setPosition(undefined);
+  closer.blur();
+  return false;
+};
+
+
+
+     
+</script>
+</body>
+</html>
